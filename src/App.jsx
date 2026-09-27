@@ -1,20 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { apiRequest, calculateDistanceKm, locationConfig } from "./api.js";
+import logo from "./assets/logo.jpeg";
 
-const fallbackProducts = [
+/* const fallbackProducts = [
   { id: "milk-1l", name: "Fresh Milk", price: 48, unit: "1 L", description: "Pure farm milk, rich in nutrients.", emoji: "🥛" },
   { id: "ghee-250g", name: "Original Ghee", price: 220, unit: "250 g", description: "Traditional taste and rich aroma.", emoji: "🧈" },
   { id: "dahi-500g", name: "Fresh Dahi", price: 75, unit: "500 g", description: "Creamy and probiotic-rich yogurt.", emoji: "🥣" },
   { id: "lassi-500ml", name: "Sweet Lassi", price: 80, unit: "500 ml", description: "Refreshing, chilled, and naturally delicious.", emoji: "🥤" },
   { id: "paneer-250g", name: "Farm Paneer", price: 180, unit: "250 g", description: "Soft paneer for curries and snacks.", emoji: "🧀" },
   { id: "buttermilk-1l", name: "Buttermilk", price: 55, unit: "1 L", description: "Cooling and protein-packed natural drink.", emoji: "🥛" },
-];
+]; */
+const fallbackProducts = [];
 
 function Brand({ dark = false }) {
   return (
     <Link className={`brand ${dark ? "brand-dark" : ""}`} to="/">
       <span className="brand-mark">M</span>
+      {/* <span className="brand-mark">
+        <img src={logo} alt="Milk Villa Logo" />
+      </span> */}
       <span>
         <strong>Milk Villa</strong>
         <small>daily dairy, done right</small>
@@ -130,7 +135,7 @@ function Storefront() {
               <span className="poster-stamp">
                 Since
                 <br />
-                2019
+                2026
               </span>
               <strong>
                 pure

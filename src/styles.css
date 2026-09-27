@@ -6,7 +6,7 @@
     --paper: #fffdf8;
     --mint: #d7e5d4;
     --sage: #728d70;
-    --coral: #e98661;
+    --blue: #0052B8;
     --line: #d8d8cb;
     --mono: 'DM Mono', monospace;
     --sans: 'Manrope', sans-serif;
@@ -76,13 +76,19 @@ footer,
     height: 38px;
     display: grid;
     place-items: center;
-    background: var(--coral);
+    background: var(--blue);
     border-radius: 50% 50% 45% 45%;
     color: white;
     font-family: var(--serif);
     font-size: 22px;
     transform: rotate(-8deg);
 }
+
+/* .brand-mark img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+} */
 
 .brand strong,
 .brand small {
@@ -198,7 +204,7 @@ h1 {
 }
 
 .button-dark:hover {
-    background: var(--coral);
+    background: var(--blue);
 }
 
 .hero-notes {
@@ -213,7 +219,7 @@ h1 {
 }
 
 .hero-notes b {
-    color: var(--coral);
+    color: var(--blue);
     margin-right: 6px;
 }
 
@@ -253,7 +259,7 @@ h1 {
     width: 320px;
     height: 320px;
     border-radius: 50%;
-    background: #e98661;
+    background: var(--blue);
     opacity: .8;
     top: -65px;
     right: -35px;
@@ -277,7 +283,7 @@ h1 {
 }
 
 .milk-poster i {
-    color: var(--coral);
+    color: var(--blue);
 }
 
 .milk-poster small {
@@ -293,12 +299,12 @@ h1 {
     position: absolute;
     top: 18px;
     right: 18px;
-    border: 1px solid var(--coral);
+    border: 1px solid var(--blue);
     border-radius: 50%;
     padding: 8px 5px;
     text-align: center;
     font: 8px/1.2 var(--mono);
-    color: var(--coral);
+    color: var(--blue);
     transform: rotate(12deg);
 }
 
@@ -313,7 +319,7 @@ h1 {
 }
 
 .hero-caption span {
-    color: var(--coral);
+    color: var(--blue);
     margin-left: 7px;
 }
 
@@ -335,7 +341,7 @@ h1 {
 .promise b {
     grid-row: span 2;
     font: 16px var(--serif);
-    color: var(--coral);
+    color: var(--blue);
 }
 
 .promise strong {
@@ -616,7 +622,7 @@ h2 {
 .form-grid input:focus,
 .form-grid textarea:focus,
 .auth-form input:focus {
-    border-color: var(--coral);
+    border-color: var(--blue);
 }
 
 .form-grid textarea {
@@ -657,7 +663,7 @@ h2 {
 .location-action button {
     border: 0;
     padding: 9px 10px;
-    background: var(--coral);
+    background: var(--blue);
     color: white;
     font-size: 9px;
     font-weight: 800;
@@ -685,13 +691,13 @@ h2 {
 }
 
 .checkout .full-button:hover {
-    background: var(--coral);
+    background: var(--blue);
     color: white;
 }
 
 .feedback {
     background: rgba(233, 134, 97, .17);
-    border-left: 2px solid var(--coral);
+    border-left: 2px solid var(--blue);
     padding: 10px;
     margin-top: 12px;
     color: #f5dcc9;
@@ -863,7 +869,7 @@ footer>a {
 .stat {
     background: var(--paper);
     padding: 20px;
-    border-top: 3px solid var(--coral);
+    border-top: 3px solid var(--blue);
 }
 
 .stat span {
@@ -905,7 +911,7 @@ footer>a {
     gap: 12px;
     align-items: center;
     font: 10px var(--mono);
-    color: var(--coral);
+    color: var(--blue);
 }
 
 .order-id small {

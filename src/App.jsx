@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { apiRequest, calculateDistanceKm, locationConfig } from "./api.js";
 import logo from "./assets/logo.jpeg";
@@ -28,34 +28,75 @@ function Brand({ dark = false }) {
   );
 }
 
+function Pagination({ page, totalPages, onPageChange, disabled = false }) {
+  if (totalPages <= 1) return null;
+  return (
+    <nav className="pagination" aria-label="Pagination">
+      <button type="button" onClick={() => onPageChange(page - 1)} disabled={disabled || page <= 1} aria-label="Previous page" title="Previous page">
+        ←
+      </button>
+      <span>
+        Page <strong>{page}</strong> of {totalPages}
+      </span>
+      <button type="button" onClick={() => onPageChange(page + 1)} disabled={disabled || page >= totalPages} aria-label="Next page" title="Next page">
+        →
+      </button>
+    </nav>
+  );
+}
+
 function Storefront() {
   const [products, setProducts] = useState(fallbackProducts);
+  const [productsById, setProductsById] = useState({});
+  const [productPage, setProductPage] = useState(1);
+  const [productPagination, setProductPagination] = useState({ page: 1, limit: 6, total: 0, totalPages: 1 });
+  const [productsLoading, setProductsLoading] = useState(true);
   const [cart, setCart] = useState({});
   const [form, setForm] = useState({ customerName: "", phone: "", address: "", city: "", pincode: "", notes: "" });
   const [position, setPosition] = useState(null);
   const [locationState, setLocationState] = useState("idle");
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showValidation, setShowValidation] = useState(false);
 
   useEffect(() => {
-    apiRequest("/products")
-      .then((data) => setProducts(data.products))
-      .catch(() => {});
-  }, []);
-  const cartItems = products.filter((product) => cart[product.id]).map((product) => ({ ...product, quantity: cart[product.id], total: product.price * cart[product.id] }));
+    let active = true;
+    setProductsLoading(true);
+    apiRequest(`/products?page=${productPage}&limit=6`)
+      .then((data) => {
+        if (!active) return;
+        setProducts(data.products);
+        setProductsById((current) => ({ ...current, ...Object.fromEntries(data.products.map((product) => [product.id, product])) }));
+        setProductPagination(data.pagination);
+        setProductPage(data.pagination.page);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setProductsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [productPage]);
+  const cartItems = Object.entries(cart).flatMap(([id, quantity]) => {
+    const product = productsById[id];
+    return product ? [{ ...product, quantity, total: product.price * quantity }] : [];
+  });
   const subtotal = cartItems.reduce((sum, item) => sum + item.total, 0);
   const distance = position ? Number(calculateDistanceKm(position.latitude, position.longitude).toFixed(2)) : null;
   const delivery = distance !== null && distance > 10 ? 40 : 0;
   const total = subtotal + delivery;
   const setField = (event) => setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
-  const changeQuantity = (id, delta) =>
+  const changeQuantity = (product, delta) => {
+    setProductsById((current) => ({ ...current, [product.id]: product }));
     setCart((current) => {
-      const next = Math.max(0, (current[id] || 0) + delta);
+      const next = Math.max(0, (current[product.id] || 0) + delta);
       const updated = { ...current };
-      if (next) updated[id] = next;
-      else delete updated[id];
+      if (next) updated[product.id] = next;
+      else delete updated[product.id];
       return updated;
     });
+  };
   const useLocation = () => {
     if (!navigator.geolocation || !Number.isFinite(locationConfig.latitude)) {
       setLocationState("error");
@@ -77,7 +118,15 @@ function Storefront() {
     );
   };
   const placeOrder = async () => {
-    if (!Object.values(form).slice(0, 5).every(Boolean) || !cartItems.length) return setFeedback("Complete your details and add at least one product.");
+    if (
+      !Object.values(form)
+        .slice(0, 5)
+        .every((value) => value.trim()) ||
+      !cartItems.length
+    ) {
+      setShowValidation(true);
+      return setFeedback("Complete your details and add at least one product.");
+    }
     if (!position) return setFeedback("Use your location before placing the order.");
     setBusy(true);
     setFeedback("");
@@ -85,6 +134,7 @@ function Storefront() {
       const { order } = await apiRequest("/orders", { method: "POST", body: JSON.stringify({ ...form, latitude: position.latitude, longitude: position.longitude, items: cartItems.map((item) => ({ productId: item.id, quantity: item.quantity })) }) });
       setCart({});
       setForm({ customerName: "", phone: "", address: "", city: "", pincode: "", notes: "" });
+      setShowValidation(false);
       setPosition(null);
       setLocationState("idle");
       setFeedback(`Order ${order.id} is confirmed. Pay ₹${order.total} on delivery.`);
@@ -111,7 +161,7 @@ function Storefront() {
       <main>
         <section className="hero">
           <div className="hero-copy">
-            <p className="eyebrow">Bottled at sunrise · delivered by lunch</p>
+            <p className="eyebrow">Packed at sunrise · delivered by lunch</p>
             <h1>The good stuff, from our dairy to your door.</h1>
             <p className="hero-lede">Fresh milk and small-batch favourites for the everyday table. Honest ingredients, local delivery, and a little more care in every order.</p>
             <a className="button button-dark" href="#products">
@@ -173,39 +223,46 @@ function Storefront() {
                 <p className="eyebrow">Straight from the dairy</p>
                 <h2>Pick your favourites</h2>
               </div>
-              <span className="section-count">{products.length} essentials</span>
+              <span className="section-count">{productPagination.total ? `Showing ${(productPage - 1) * productPagination.limit + 1}-${Math.min(productPage * productPagination.limit, productPagination.total)} of ${productPagination.total}` : "No products"}</span>
             </div>
-            <div className="product-grid">
-              {products.map((product, index) => (
-                <article className={`product-card ${cart[product.id] ? "selected" : ""}`} key={product.id}>
-                  <div className={`product-visual visual-${index % 3}`}>
-                    <span>{product.emoji}</span>
-                    <small>{product.unit}</small>
-                  </div>
-                  <div className="product-info">
-                    <div>
-                      <h3>{product.name}</h3>
-                      <p>{product.description}</p>
+            {productsLoading ? (
+              <div className="empty-products">Loading products...</div>
+            ) : products.length ? (
+              <div className="product-grid">
+                {products.map((product, index) => (
+                  <article className={`product-card ${cart[product.id] ? "selected" : ""}`} key={product.id}>
+                    <div className={`product-visual visual-${index % 3}`}>
+                      <span>{product.emoji}</span>
+                      <small>{product.unit}</small>
                     </div>
-                    <strong>₹{product.price}</strong>
-                  </div>
-                  <div className="product-actions">
-                    <div className="stepper">
-                      <button onClick={() => changeQuantity(product.id, -1)} aria-label={`Remove ${product.name}`}>
-                        −
-                      </button>
-                      <span>{cart[product.id] || 0}</span>
-                      <button onClick={() => changeQuantity(product.id, 1)} aria-label={`Add ${product.name}`}>
-                        +
+                    <div className="product-info">
+                      <div>
+                        <h3>{product.name}</h3>
+                        <p>{product.description}</p>
+                      </div>
+                      <strong>₹{product.price}</strong>
+                    </div>
+                    <div className="product-actions">
+                      <div className="stepper">
+                        <button onClick={() => changeQuantity(product, -1)} aria-label={`Remove ${product.name}`}>
+                          −
+                        </button>
+                        <span>{cart[product.id] || 0}</span>
+                        <button onClick={() => changeQuantity(product, 1)} aria-label={`Add ${product.name}`}>
+                          +
+                        </button>
+                      </div>
+                      <button className="add-button" onClick={() => changeQuantity(product, 1)}>
+                        Add to order
                       </button>
                     </div>
-                    <button className="add-button" onClick={() => changeQuantity(product.id, 1)}>
-                      Add to order
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-products">No products are available right now.</div>
+            )}
+            <Pagination page={productPage} totalPages={productPagination.totalPages} onPageChange={setProductPage} disabled={productsLoading} />
           </section>
           <aside className="checkout" id="checkout">
             <div className="checkout-heading">
@@ -230,7 +287,7 @@ function Storefront() {
                 ))}
               </div>
             ) : (
-              <div className="empty-cart">
+              <div className={`empty-cart ${showValidation && !cartItems.length ? "invalid" : ""}`}>
                 Your basket is waiting.
                 <br />
                 Add something fresh to begin.
@@ -259,9 +316,14 @@ function Storefront() {
                 ["city", "City", "text"],
                 ["pincode", "Pincode", "text"],
               ].map(([name, placeholder, type]) => (
-                <label key={name}>
-                  <span>{placeholder}</span>
-                  <input name={name} type={type} value={form[name]} onChange={setField} placeholder={placeholder} />
+                <label className={showValidation && !form[name].trim() ? "invalid" : ""} key={name}>
+                  <span>
+                    {placeholder}{" "}
+                    <span className="required-marker" aria-hidden="true">
+                      *
+                    </span>
+                  </span>
+                  <input name={name} type={type} value={form[name]} onChange={setField} placeholder={placeholder} required aria-invalid={showValidation && !form[name].trim()} />
                 </label>
               ))}
               <label className="wide">
@@ -271,6 +333,9 @@ function Storefront() {
                 <textarea name="notes" value={form.notes} onChange={setField} placeholder="Any special instructions" />
               </label>
             </div>
+            <p className="required-note">
+              <span aria-hidden="true">*</span> marked fields are required
+            </p>
             <div className={`location-action ${locationState}`}>
               <span>
                 <b>{locationState === "ready" ? "Delivery distance ready" : "Calculate your delivery"}</b>
@@ -350,24 +415,39 @@ function AdminLogin() {
 function AdminDashboard() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
+  const [counts, setCounts] = useState([]);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const load = () =>
-    apiRequest("/orders")
-      .then((data) => setOrders(data.orders))
+  const load = (requestedPage = page, signal) => {
+    setLoading(true);
+    return apiRequest(`/orders?page=${requestedPage}&limit=${pagination.limit}`, { signal })
+      .then((data) => {
+        setOrders(data.orders);
+        setPagination(data.pagination);
+        setPage(data.pagination.page);
+        setCounts(["pending", "placed", "out-for-delivery", "delivered"].map((status) => ({ status, count: data.counts[status] || 0 })));
+        setError("");
+      })
       .catch((err) => {
+        if (err.name === "AbortError") return;
         if (err.status === 401) navigate("/admin/login");
         else setError(err.message);
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!signal?.aborted) setLoading(false);
+      });
+  };
   useEffect(() => {
-    load();
-  }, []);
-  const counts = useMemo(() => ["pending", "placed", "out-for-delivery", "delivered"].map((status) => ({ status, count: orders.filter((order) => order.status === status).length })), [orders]);
+    const controller = new AbortController();
+    load(page, controller.signal);
+    return () => controller.abort();
+  }, [page]);
   const update = async (id, status) => {
     try {
       await apiRequest(`/orders/${id}/status`, { method: "PUT", body: JSON.stringify({ status }) });
-      load();
+      load(page);
     } catch (err) {
       setError(err.message);
     }
@@ -392,9 +472,8 @@ function AdminDashboard() {
       <section className="admin-content">
         <div className="admin-intro">
           <div>
-            <p className="eyebrow">Owner dashboard</p>
-            <h1>Today at the dairy</h1>
-            <p>Every order, in one quiet place.</p>
+            <p className="eyebrow">Owner's dashboard</p>
+            <h1>Check Order's Status</h1>
           </div>
           <span className="date-chip">{new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</span>
         </div>
@@ -418,7 +497,7 @@ function AdminDashboard() {
                 <div className="order-main">
                   <div className="order-id">
                     <span>{order.id}</span>
-                    <small>{new Date(order.createdAt).toLocaleString()}</small>
+                    <small>{new Date(order.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true })}</small>
                   </div>
                   <h3>{order.customerName}</h3>
                   <p>
@@ -436,7 +515,7 @@ function AdminDashboard() {
                 <div className="order-total">
                   <span>{order.distanceKm} km</span>
                   <strong>₹{order.total}</strong>
-                  <select value={order.status} onChange={(event) => update(order.id, event.target.value)}>
+                  <select value={order.status} onChange={(event) => update(order.id, event.target.value)} disabled={order.status === "delivered"} className={order.status === "delivered" ? "disabled" : ""}>
                     {["pending", "placed", "out-for-delivery", "delivered"].map((status) => (
                       <option value={status} key={status}>
                         {status.replaceAll("-", " ")}
@@ -446,6 +525,14 @@ function AdminDashboard() {
                 </div>
               </article>
             ))}
+          </div>
+        )}
+        {!loading && pagination.total > 0 && (
+          <div className="orders-pagination">
+            <span>
+              Showing {(pagination.page - 1) * pagination.limit + 1}-{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} orders
+            </span>
+            <Pagination page={page} totalPages={pagination.totalPages} onPageChange={setPage} disabled={loading} />
           </div>
         )}
       </section>

@@ -730,7 +730,7 @@ footer>span {
 }
 
 footer>a {
-    color: #e98661;
+    color: --var(--blue);
 }
 
 .auth-page {

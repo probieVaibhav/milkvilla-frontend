@@ -689,6 +689,60 @@ h2 {
     border-bottom-color: #ef7465;
 }
 
+.email-verification {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 10px;
+    margin-top: 2px;
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, .2);
+}
+
+.email-verification button {
+    border: 1px solid #b9c9b8;
+    background: transparent;
+    color: white;
+    padding: 8px 10px;
+    font-size: 9px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.email-verification button:disabled {
+    cursor: default;
+    opacity: .7;
+}
+
+.email-verification span {
+    color: #b9c9b8;
+    font-size: 9px;
+    line-height: 1.5;
+}
+
+.email-verification span.notice-success {
+    padding: 7px 9px;
+    border-left: 2px solid #43a765;
+    background: #dff2e3;
+    color: #205b33;
+}
+
+.email-verification span.notice-error {
+    padding: 7px 9px;
+    border-left: 2px solid #d66d59;
+    background: #fce3db;
+    color: #8f382b;
+}
+
+.email-verification.verified {
+    border-color: #a9c9a6;
+}
+
+.email-verification.verified button {
+    border-color: #a9c9a6;
+    color: #cce4c7;
+}
+
 .form-grid textarea {
     resize: vertical;
     min-height: 38px;
@@ -779,6 +833,27 @@ h2 {
 .feedback.error {
     color: #a8513c;
     background: #fce3db;
+}
+
+.storefront .feedback.toast {
+    position: fixed;
+    z-index: 20;
+    top: 18px;
+    right: 18px;
+    width: min(420px, calc(100vw - 36px));
+    box-shadow: 0 8px 28px rgba(20, 48, 42, .2);
+}
+
+.feedback.toast.success {
+    border-left-color: #43a765;
+    color: #205b33;
+    background: #dff2e3;
+}
+
+.feedback.toast.warning {
+    border-left-color: #d19a34;
+    color: #624711;
+    background: #fff0cc;
 }
 
 footer {
@@ -1180,6 +1255,10 @@ footer>a {
 
     .form-grid .wide {
         grid-column: auto;
+    }
+
+    .email-verification {
+        grid-template-columns: 1fr;
     }
 
     footer {

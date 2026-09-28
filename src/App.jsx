@@ -13,6 +13,14 @@ import logo from "./assets/logo.jpeg";
 ]; */
 const fallbackProducts = [];
 
+function useAutoDismiss(value, setValue, emptyValue = "") {
+  useEffect(() => {
+    if (!value) return undefined;
+    const timeout = window.setTimeout(() => setValue(emptyValue), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [value, setValue, emptyValue]);
+}
+
 function Brand({ dark = false }) {
   return (
     <Link className={`brand ${dark ? "brand-dark" : ""}`} to="/">
@@ -52,12 +60,50 @@ function Storefront() {
   const [productPagination, setProductPagination] = useState({ page: 1, limit: 6, total: 0, totalPages: 1 });
   const [productsLoading, setProductsLoading] = useState(true);
   const [cart, setCart] = useState({});
-  const [form, setForm] = useState({ customerName: "", phone: "", address: "", city: "", pincode: "", notes: "" });
+  const [form, setForm] = useState({ customerName: "", email: "", phone: "", address: "", city: "", pincode: "", notes: "" });
+  const [verifiedEmail, setVerifiedEmail] = useState(null);
+  const [verificationBusy, setVerificationBusy] = useState(false);
+  const [verificationNotice, setVerificationNotice] = useState(null);
+  const [verificationCooldown, setVerificationCooldown] = useState(0);
   const [position, setPosition] = useState(null);
   const [locationState, setLocationState] = useState("idle");
-  const [feedback, setFeedback] = useState("");
+  const [feedback, setFeedback] = useState(null);
   const [busy, setBusy] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
+
+  useAutoDismiss(feedback, setFeedback, null);
+  useAutoDismiss(verificationNotice, setVerificationNotice, null);
+
+  useEffect(() => {
+    if (!verificationCooldown) return undefined;
+    const timeout = window.setTimeout(() => setVerificationCooldown((seconds) => Math.max(0, seconds - 1)), 1000);
+    return () => window.clearTimeout(timeout);
+  }, [verificationCooldown]);
+
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("verify");
+    if (!token) return;
+    apiRequest("/email/verify", { method: "POST", body: JSON.stringify({ token }) })
+      .then(({ email, verificationToken, checkout }) => {
+        setForm((current) => ({ ...current, email }));
+        setVerifiedEmail({ email, token: verificationToken });
+        setVerificationNotice({ type: "success", message: `Email verified: ${email}` });
+        if (checkout) {
+          setForm((current) => ({ ...current, ...checkout.form, email }));
+          const restoredItems = checkout.items || [];
+          setCart(Object.fromEntries(restoredItems.map((item) => [item.id, item.quantity])));
+          setProductsById((current) => ({ ...current, ...Object.fromEntries(restoredItems.map((item) => [item.id, item])) }));
+          setPosition(checkout.position || null);
+          setLocationState(checkout.position ? "ready" : "idle");
+          window.history.replaceState({}, "", `${window.location.pathname}#checkout`);
+          return;
+        }
+      })
+      .catch((error) => setVerificationNotice({ type: "error", message: error.message }))
+      .finally(() => {
+        if (window.location.search) window.history.replaceState({}, "", window.location.pathname + window.location.hash);
+      });
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -86,7 +132,53 @@ function Storefront() {
   const distance = position ? Number(calculateDistanceKm(position.latitude, position.longitude).toFixed(2)) : null;
   const delivery = distance !== null && distance > 10 ? 40 : 0;
   const total = subtotal + delivery;
-  const setField = (event) => setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
+  const setField = (event) => {
+    const { name, value } = event.target;
+    setForm((current) => ({ ...current, [name]: value }));
+    if (name === "email" && verifiedEmail?.email !== value.trim().toLowerCase()) {
+      setVerifiedEmail(null);
+      setVerificationNotice(null);
+    }
+  };
+  const checkEmailStatus = async () => {
+    const email = form.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || verifiedEmail?.email === email) return;
+    try {
+      const result = await apiRequest("/email/status", { method: "POST", body: JSON.stringify({ email }) });
+      if (result.verified && form.email.trim().toLowerCase() === email) {
+        setVerifiedEmail({ email, token: null });
+        setVerificationNotice({ type: "success", message: "This email is already verified." });
+      }
+    } catch (error) {
+      setFeedback({ type: "error", message: error.message });
+    }
+  };
+  const showFeedback = (message, type = "error") => setFeedback({ type, message });
+  const requestEmailVerification = async () => {
+    const email = form.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setVerificationNotice({ type: "error", message: "Enter a valid email address first." });
+      return;
+    }
+    setVerificationBusy(true);
+    setVerificationNotice(null);
+    try {
+      const checkout = {
+        form,
+        items: cartItems.map((item) => ({ productId: item.id, quantity: item.quantity })),
+        position: position ? { latitude: position.latitude, longitude: position.longitude } : null,
+      };
+      const result = await apiRequest("/email/verification", { method: "POST", body: JSON.stringify({ email, checkout }) });
+      if (result.verified) setVerifiedEmail({ email, token: null });
+      setVerificationCooldown(result.verified ? 0 : result.retryAfter || 30);
+      setVerificationNotice({ type: "success", message: result.message });
+    } catch (error) {
+      if (error.retryAfter) setVerificationCooldown(error.retryAfter);
+      setVerificationNotice({ type: "error", message: error.message });
+    } finally {
+      setVerificationBusy(false);
+    }
+  };
   const changeQuantity = (product, delta) => {
     setProductsById((current) => ({ ...current, [product.id]: product }));
     setCart((current) => {
@@ -100,7 +192,7 @@ function Storefront() {
   const useLocation = () => {
     if (!navigator.geolocation || !Number.isFinite(locationConfig.latitude)) {
       setLocationState("error");
-      setFeedback("Delivery coordinates are not configured yet.");
+      showFeedback("Delivery coordinates are not configured yet.");
       return;
     }
     setLocationState("loading");
@@ -108,38 +200,41 @@ function Storefront() {
       (next) => {
         setPosition(next.coords);
         setLocationState("ready");
-        setFeedback("");
+        setFeedback(null);
       },
       () => {
         setLocationState("error");
-        setFeedback("Please allow location access to calculate delivery.");
+        showFeedback("Please allow location access to calculate delivery.");
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 },
     );
   };
   const placeOrder = async () => {
-    if (
-      !Object.values(form)
-        .slice(0, 5)
-        .every((value) => value.trim()) ||
-      !cartItems.length
-    ) {
+    if (![form.customerName, form.email, form.phone, form.address, form.city, form.pincode].every((value) => value.trim()) || !cartItems.length) {
       setShowValidation(true);
-      return setFeedback("Complete your details and add at least one product.");
+      return showFeedback("Complete your details and add at least one product.");
     }
-    if (!position) return setFeedback("Use your location before placing the order.");
+    const email = form.email.trim().toLowerCase();
+    if (verifiedEmail?.email !== email) {
+      try {
+        const result = await apiRequest("/email/status", { method: "POST", body: JSON.stringify({ email }) });
+        if (!result.verified) return showFeedback("Verify your email before placing the order. Use the link we sent to your inbox.");
+        setVerifiedEmail({ email, token: null });
+      } catch (error) {
+        return showFeedback(error.message);
+      }
+    }
+    if (!position) return showFeedback("Use your location before placing the order.");
     setBusy(true);
-    setFeedback("");
+    setFeedback(null);
     try {
-      const { order } = await apiRequest("/orders", { method: "POST", body: JSON.stringify({ ...form, latitude: position.latitude, longitude: position.longitude, items: cartItems.map((item) => ({ productId: item.id, quantity: item.quantity })) }) });
+      const { order, customerEmail } = await apiRequest("/orders", { method: "POST", body: JSON.stringify({ ...form, verificationToken: verifiedEmail?.token, latitude: position.latitude, longitude: position.longitude, items: cartItems.map((item) => ({ productId: item.id, quantity: item.quantity })) }) });
       setCart({});
-      setForm({ customerName: "", phone: "", address: "", city: "", pincode: "", notes: "" });
       setShowValidation(false);
-      setPosition(null);
-      setLocationState("idle");
-      setFeedback(`Order ${order.id} is confirmed. Pay ₹${order.total} on delivery.`);
+      const message = customerEmail?.sent ? `Order ${order.id} placed successfully. Confirmation sent to ${email}. Pay ₹${order.total} on delivery.` : `Order ${order.id} placed successfully, but the confirmation email could not be sent. ${customerEmail?.warning || "Please contact Milk Villa."}`;
+      showFeedback(message, customerEmail?.sent ? "success" : "warning");
     } catch (error) {
-      setFeedback(error.message);
+      showFeedback(error.message);
     } finally {
       setBusy(false);
     }
@@ -311,6 +406,7 @@ function Storefront() {
             <div className="form-grid">
               {[
                 ["customerName", "Your name", "text"],
+                ["email", "Email address", "email"],
                 ["phone", "Phone number", "tel"],
                 ["address", "House, street, locality", "text"],
                 ["city", "City", "text"],
@@ -323,9 +419,17 @@ function Storefront() {
                       *
                     </span>
                   </span>
-                  <input name={name} type={type} value={form[name]} onChange={setField} placeholder={placeholder} required aria-invalid={showValidation && !form[name].trim()} />
+                  <input name={name} type={type} value={form[name]} onChange={setField} onBlur={name === "email" ? checkEmailStatus : undefined} placeholder={placeholder} required aria-invalid={showValidation && !form[name].trim()} />
                 </label>
               ))}
+              <div className={`email-verification ${verifiedEmail?.email === form.email.trim().toLowerCase() ? "verified" : ""}`}>
+                <button type="button" onClick={requestEmailVerification} disabled={verificationBusy || verificationCooldown > 0 || !form.email.trim() || verifiedEmail?.email === form.email.trim().toLowerCase()}>
+                  {verificationBusy ? "Sending link..." : verifiedEmail?.email === form.email.trim().toLowerCase() ? "Email verified" : verificationCooldown ? `Resend in ${verificationCooldown}s` : "Send verification link"}
+                </button>
+                <span className={verificationNotice?.type === "success" ? "notice-success" : verificationNotice ? "notice-error" : ""} aria-live="polite">
+                  {verificationNotice?.message || (verifiedEmail ? (cartItems.length ? "You can now place your order." : "This email is verified.") : "Verify your email before checkout.")}
+                </span>
+              </div>
               <label className="wide">
                 <span>
                   Order notes <em>optional</em>
@@ -346,10 +450,14 @@ function Storefront() {
               </button>
             </div>
             <p className="policy">Free within 10 km · ₹40 beyond · cash on delivery</p>
-            <button className="button button-dark full-button" onClick={placeOrder} disabled={busy}>
-              {busy ? "Placing order..." : "Place order · COD"}
+            <button className="button button-dark full-button" onClick={placeOrder} disabled={busy || !cartItems.length}>
+              {busy ? "Placing order..." : verifiedEmail?.email === form.email.trim().toLowerCase() ? (cartItems.length ? "Place order · COD" : "Add products to place another order") : "Verify email to continue"}
             </button>
-            {feedback && <div className="feedback">{feedback}</div>}
+            {feedback && (
+              <div className={`feedback toast ${feedback.type}`} role={feedback.type === "error" ? "alert" : "status"}>
+                {feedback.message}
+              </div>
+            )}
           </aside>
         </div>
       </main>
@@ -367,6 +475,7 @@ function AdminLogin() {
   const [form, setForm] = useState({ username: "", password: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  useAutoDismiss(error, setError);
   const submit = async (event) => {
     event.preventDefault();
     setBusy(true);
@@ -420,6 +529,9 @@ function AdminDashboard() {
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notificationNotice, setNotificationNotice] = useState("");
+  useAutoDismiss(error, setError);
+  useAutoDismiss(notificationNotice, setNotificationNotice);
   const load = (requestedPage = page, signal) => {
     setLoading(true);
     return apiRequest(`/orders?page=${requestedPage}&limit=${pagination.limit}`, { signal })
@@ -446,9 +558,11 @@ function AdminDashboard() {
   }, [page]);
   const update = async (id, status) => {
     try {
-      await apiRequest(`/orders/${id}/status`, { method: "PUT", body: JSON.stringify({ status }) });
+      const result = await apiRequest(`/orders/${id}/status`, { method: "PUT", body: JSON.stringify({ status }) });
+      setNotificationNotice(result.notification?.warning ? `Email not sent: ${result.notification.warning}` : result.notification?.skipped ? "Order status was unchanged; no email was sent." : "Customer status email sent.");
       load(page);
     } catch (err) {
+      setNotificationNotice("");
       setError(err.message);
     }
   };
@@ -486,6 +600,14 @@ function AdminDashboard() {
           ))}
         </div>
         {error && <div className="feedback error">{error}</div>}
+        {/* {notificationNotice && (
+          <div className={`feedback ${notificationNotice.startsWith("Email not sent") ? "error" : ""}`} aria-live="polite">
+            {notificationNotice}
+          </div>
+        )} */}
+        <div className={`feedback ${notificationNotice.startsWith("Email not sent") ? "error" : ""}`} aria-live="polite">
+          {notificationNotice}
+        </div>
         {loading ? (
           <div className="empty-admin">Loading orders...</div>
         ) : !orders.length ? (

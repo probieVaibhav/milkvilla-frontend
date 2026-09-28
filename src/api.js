@@ -10,6 +10,7 @@ export async function apiRequest(path, options = {}) {
   if (!response.ok) {
     const error = new Error(data.error || "Something went wrong.");
     error.status = response.status;
+    error.retryAfter = data.retryAfter;
     throw error;
   }
   return data;

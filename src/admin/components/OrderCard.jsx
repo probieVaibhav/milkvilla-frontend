@@ -1,4 +1,4 @@
-export default function OrderCard({ order, onStatusChange }) {
+export default function OrderCard({ order, onStatusChange, statusUpdating }) {
   const canceled = order.status === "canceled";
   return (
     <article className="order-card">
@@ -29,7 +29,7 @@ export default function OrderCard({ order, onStatusChange }) {
             <p>{order.cancellationReason}</p>
           </div>
         ) : (
-          <select value={order.status} onChange={(event) => onStatusChange(order.id, event.target.value)} disabled={order.status === "delivered"} className={order.status === "delivered" ? "disabled" : ""}>
+          <select value={order.status} onChange={(event) => onStatusChange(order.id, event.target.value)} disabled={order.status === "delivered" || statusUpdating} className={order.status === "delivered" || statusUpdating ? "disabled" : ""}>
             {["pending", "placed", "out-for-delivery", "delivered"].map((status) => (
               <option value={status} key={status}>
                 {status.replaceAll("-", " ")}

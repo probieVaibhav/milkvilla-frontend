@@ -20,6 +20,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState("");
   const [notificationNotice, setNotificationNotice] = useState("");
   const [cancelOrderId, setCancelOrderId] = useState(null);
+  const [updatingOrderIds, setUpdatingOrderIds] = useState(() => new Set());
   useAutoDismiss(error, setError);
   useAutoDismiss(notificationNotice, setNotificationNotice);
   const load = (requestedPage = page, signal) => {
@@ -54,6 +55,7 @@ export default function AdminDashboard() {
     return () => events.close();
   }, [page]);
   const update = async (id, status, cancellationReason) => {
+    setUpdatingOrderIds((current) => new Set(current).add(id));
     try {
       const result = await apiRequest(`/orders/${id}/status`, { method: "PUT", body: JSON.stringify({ status, cancellationReason }) });
       setNotificationNotice(result.notification?.warning ? `Email not sent: ${result.notification.warning}` : result.notification?.skipped ? "Order status was unchanged; no email was sent." : "Customer status email sent.");
@@ -63,6 +65,12 @@ export default function AdminDashboard() {
       setNotificationNotice("");
       setError(err.message);
       return false;
+    } finally {
+      setUpdatingOrderIds((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
     }
   };
   const handleStatusChange = (id, selectedStatus) => {
@@ -118,7 +126,7 @@ export default function AdminDashboard() {
         ) : (
           <div className="orders-list">
             {orders.map((order) => (
-              <OrderCard key={order.id} order={order} onStatusChange={handleStatusChange} />
+              <OrderCard key={order.id} order={order} onStatusChange={handleStatusChange} statusUpdating={updatingOrderIds.has(order.id)} />
             ))}
           </div>
         )}

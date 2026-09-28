@@ -1,4 +1,4 @@
-const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+export const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
 export async function apiRequest(path, options = {}) {
   const response = await fetch(`${apiUrl}${path}`, {
@@ -11,6 +11,7 @@ export async function apiRequest(path, options = {}) {
     const error = new Error(data.error || "Something went wrong.");
     error.status = response.status;
     error.retryAfter = data.retryAfter;
+    error.fieldErrors = data.fieldErrors;
     throw error;
   }
   return data;

@@ -66,6 +66,8 @@ footer,
     align-items: center;
     justify-content: space-between;
     padding: 0 28px;
+    width: 1240px;
+    margin: auto;
 }
 
 .brand {
@@ -336,6 +338,7 @@ h1 {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 25px;
+    margin: auto;
 }
 
 .promise div {
@@ -365,6 +368,7 @@ h1 {
     gap: 42px;
     padding: 90px 28px;
     align-items: start;
+    margin: auto;
 }
 
 .section-top,

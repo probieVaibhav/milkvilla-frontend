@@ -13,9 +13,9 @@
     "emoji-picker-react": "^4.22.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.28.0",
+    "react-router-dom": "^7.18.4",
     "react-window": "^1.8.11",
-    "vite": "^5.4.10",
+    "vite": "^7.3.7",
     "zod": "^4.6.5"
   }
 }

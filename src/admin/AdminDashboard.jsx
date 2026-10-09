@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { VariableSizeList } from "react-window";
 import { Link, useNavigate } from "react-router-dom";
-import { apiRequest, apiUrl } from "../api.js";
+import { apiRequest, apiUrl, downloadDatabaseBackup } from "../api.js";
 import Brand from "../components/Brand.jsx";
 import Pagination from "../components/Pagination.jsx";
 import useAutoDismiss from "../hooks/useAutoDismiss.js";
@@ -51,6 +51,7 @@ export default function AdminDashboard() {
   const [notificationNotice, setNotificationNotice] = useState("");
   const [cancelOrderId, setCancelOrderId] = useState(null);
   const [updatingOrderIds, setUpdatingOrderIds] = useState(() => new Set());
+  const [downloadingBackup, setDownloadingBackup] = useState(false);
   useAutoDismiss(error, setError);
   useAutoDismiss(notificationNotice, setNotificationNotice);
   const load = (requestedPage = page, signal) => {
@@ -162,6 +163,19 @@ export default function AdminDashboard() {
     await apiRequest("/auth/logout", { method: "POST" });
     navigate("/admin/login");
   };
+  const downloadBackup = async () => {
+    if (!window.confirm("The backup contains customer and order data. Only download it to a trusted device and store it securely. Continue?")) return;
+    setDownloadingBackup(true);
+    try {
+      await downloadDatabaseBackup();
+      setNotificationNotice("Database backup downloaded. Store it securely.");
+    } catch (err) {
+      if (err.status === 401) navigate("/admin/login");
+      else setError(err.message);
+    } finally {
+      setDownloadingBackup(false);
+    }
+  };
   return (
     <main className="admin-page">
       <header className="admin-top">
@@ -170,6 +184,9 @@ export default function AdminDashboard() {
           <Link className="admin-link" to="/admin/products">
             Manage products
           </Link>
+          <button className="text-button" onClick={downloadBackup} disabled={downloadingBackup}>
+            {downloadingBackup ? "Preparing backup..." : "Download backup"}
+          </button>
           <button className="text-button" onClick={logout}>
             Sign out
           </button>

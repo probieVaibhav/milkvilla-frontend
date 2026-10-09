@@ -1,5 +1,9 @@
 export const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
+if (import.meta.env.PROD && !apiUrl.startsWith("https://")) {
+  throw new Error("VITE_API_URL must use HTTPS in production.");
+}
+
 export async function apiRequest(path, options = {}) {
   const response = await fetch(`${apiUrl}${path}`, {
     ...options,
@@ -15,6 +19,25 @@ export async function apiRequest(path, options = {}) {
     throw error;
   }
   return data;
+}
+
+export async function downloadDatabaseBackup() {
+  const response = await fetch(`${apiUrl}/admin/database/backup`, { credentials: "include" });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const error = new Error(data.error || "Database backup could not be downloaded.");
+    error.status = response.status;
+    throw error;
+  }
+
+  const backup = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = backup;
+  link.download = `milk-villa-backup-${new Date().toISOString().slice(0, 10)}.sqlite`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(backup), 1000);
 }
 
 export const locationConfig = {

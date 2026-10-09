@@ -21,25 +21,6 @@ export async function apiRequest(path, options = {}) {
   return data;
 }
 
-export async function downloadDatabaseBackup() {
-  const response = await fetch(`${apiUrl}/admin/database/backup`, { credentials: "include" });
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    const error = new Error(data.error || "Database backup could not be downloaded.");
-    error.status = response.status;
-    throw error;
-  }
-
-  const backup = URL.createObjectURL(await response.blob());
-  const link = document.createElement("a");
-  link.href = backup;
-  link.download = `milk-villa-backup-${new Date().toISOString().slice(0, 10)}.sqlite`;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(backup), 1000);
-}
-
 export const locationConfig = {
   latitude: Number(import.meta.env.VITE_DAIRY_LATITUDE),
   longitude: Number(import.meta.env.VITE_DAIRY_LONGITUDE),

@@ -14,12 +14,6 @@ export default function OrderCard({ order, onStatusChange, statusUpdating }) {
       return;
     }
 
-    const mapWindow = window.open("about:blank", "_blank");
-    if (mapWindow) {
-      mapWindow.opener = null;
-      mapWindow.document.title = "Finding your location";
-      mapWindow.document.body.textContent = "Finding your current location to calculate directions…";
-    }
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
@@ -27,16 +21,15 @@ export default function OrderCard({ order, onStatusChange, statusUpdating }) {
         const destination = `${order.latitude},${order.longitude}`;
         const directionsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving`;
         setLocating(false);
-        if (mapWindow && !mapWindow.closed) {
-          mapWindow.location.replace(directionsUrl);
-          setMapMessage("Directions opened in a new tab.");
-        } else {
+        const mapWindow = window.open(directionsUrl, "_blank");
+        if (!mapWindow) {
           setFallbackDirectionsUrl(directionsUrl);
-          setMapMessage("Your location is ready. Use the link below to open directions.");
+          setMapMessage("Your location is ready. Allow pop-ups or use the link to open directions.");
+        } else {
+          mapWindow.opener = null;
         }
       },
       (error) => {
-        if (mapWindow && !mapWindow.closed) mapWindow.close();
         setLocating(false);
         const messages = {
           1: "Location permission was denied. Allow location access in your browser settings and try again.",
@@ -89,7 +82,7 @@ export default function OrderCard({ order, onStatusChange, statusUpdating }) {
         {(mapMessage || fallbackDirectionsUrl) && (
           <div className="map-feedback" role="status" aria-live="polite">
             <span>{mapMessage}</span>
-            {fallbackDirectionsUrl && <a href={fallbackDirectionsUrl} target="_blank" rel="noreferrer">Open directions ↗</a>}
+            {fallbackDirectionsUrl && <a href={fallbackDirectionsUrl} target="_blank" rel="noopener noreferrer">Open directions ↗</a>}
           </div>
         )}
       </div>

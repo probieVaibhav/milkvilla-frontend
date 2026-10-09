@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { VariableSizeList } from "react-window";
 import { Link, useNavigate } from "react-router-dom";
-import { apiRequest, apiUrl, downloadDatabaseBackup } from "../api.js";
+import { apiRequest, apiUrl } from "../api.js";
 import Brand from "../components/Brand.jsx";
 import Pagination from "../components/Pagination.jsx";
 import useAutoDismiss from "../hooks/useAutoDismiss.js";
 import CancelOrderDialog from "./components/CancelOrderDialog.jsx";
+import FilterDropdown from "./components/FilterDropdown.jsx";
 import OrderCard from "./components/OrderCard.jsx";
 import StatusSummary from "./components/StatusSummary.jsx";
 
@@ -51,7 +52,6 @@ export default function AdminDashboard() {
   const [notificationNotice, setNotificationNotice] = useState("");
   const [cancelOrderId, setCancelOrderId] = useState(null);
   const [updatingOrderIds, setUpdatingOrderIds] = useState(() => new Set());
-  const [downloadingBackup, setDownloadingBackup] = useState(false);
   useAutoDismiss(error, setError);
   useAutoDismiss(notificationNotice, setNotificationNotice);
   const load = (requestedPage = page, signal) => {
@@ -104,10 +104,7 @@ export default function AdminDashboard() {
     setActiveStatus(status);
     setPage(1);
   };
-  const setFilterValue = (event) => {
-    const { name, value } = event.target;
-    setFilterDraft((current) => ({ ...current, [name]: value }));
-  };
+  const setFilterValue = (name, value) => setFilterDraft((current) => ({ ...current, [name]: value }));
   const applyFilters = (event) => {
     event.preventDefault();
     setPage(1);
@@ -163,19 +160,6 @@ export default function AdminDashboard() {
     await apiRequest("/auth/logout", { method: "POST" });
     navigate("/admin/login");
   };
-  const downloadBackup = async () => {
-    if (!window.confirm("The backup contains customer and order data. Only download it to a trusted device and store it securely. Continue?")) return;
-    setDownloadingBackup(true);
-    try {
-      await downloadDatabaseBackup();
-      setNotificationNotice("Database backup downloaded. Store it securely.");
-    } catch (err) {
-      if (err.status === 401) navigate("/admin/login");
-      else setError(err.message);
-    } finally {
-      setDownloadingBackup(false);
-    }
-  };
   return (
     <main className="admin-page">
       <header className="admin-top">
@@ -184,9 +168,6 @@ export default function AdminDashboard() {
           <Link className="admin-link" to="/admin/products">
             Manage products
           </Link>
-          <button className="text-button" onClick={downloadBackup} disabled={downloadingBackup}>
-            {downloadingBackup ? "Preparing backup..." : "Download backup"}
-          </button>
           <button className="text-button" onClick={logout}>
             Sign out
           </button>
@@ -224,34 +205,36 @@ export default function AdminDashboard() {
               <span>To date</span>
               <input type="date" name="dateTo" value={filterDraft.dateTo} onChange={setFilterValue} min={filterDraft.dateFrom || undefined} />
             </label>
-            <label className="filter-field">
-              <span>Product type</span>
-              <select name="category" value={filterDraft.category} onChange={setFilterValue}>
-                <option value="">All product types</option>
-                {productCategories.map((category) => (
-                  <option value={category} key={category}>
-                    {category.replaceAll("-", " ")}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="filter-field">
-              <span>Delivery distance</span>
-              <select name="distance" value={filterDraft.distance} onChange={setFilterValue}>
-                <option value="">Any distance</option>
-                <option value="1-10">1–10 km</option>
-                <option value="10-20">10–20 km</option>
-                <option value="20-50">20–50 km</option>
-                <option value="50+">50+ km</option>
-              </select>
-            </label>
-            <label className="filter-field">
-              <span>Order date</span>
-              <select name="sortDate" value={filterDraft.sortDate} onChange={setFilterValue}>
-                <option value="newest">Newest first</option>
-                <option value="oldest">Oldest first</option>
-              </select>
-            </label>
+            <FilterDropdown
+              label="Product type"
+              value={filterDraft.category}
+              options={[
+                { value: "", label: "All product types" },
+                ...productCategories.map((category) => ({ value: category, label: category.replaceAll("-", " ") })),
+              ]}
+              onChange={(value) => setFilterValue("category", value)}
+            />
+            <FilterDropdown
+              label="Delivery distance"
+              value={filterDraft.distance}
+              options={[
+                { value: "", label: "Any distance" },
+                { value: "1-10", label: "1–10 km" },
+                { value: "10-20", label: "10–20 km" },
+                { value: "20-50", label: "20–50 km" },
+                { value: "50+", label: "50+ km" },
+              ]}
+              onChange={(value) => setFilterValue("distance", value)}
+            />
+            <FilterDropdown
+              label="Order date"
+              value={filterDraft.sortDate}
+              options={[
+                { value: "newest", label: "Newest first" },
+                { value: "oldest", label: "Oldest first" },
+              ]}
+              onChange={(value) => setFilterValue("sortDate", value)}
+            />
             <div className="filter-actions">
               <button className="filter-apply" type="submit">
                 Apply filters <span aria-hidden="true">→</span>
